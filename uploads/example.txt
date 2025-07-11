@@ -1,0 +1,44 @@
+from __future__ import print_function
+import os.path
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+# Scope: Full access to Google Drive
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+def authenticate():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
+    # If there are no (valid) credentials, let the user log in manually
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            # This launches a browser where the user can manually authenticate
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server()  # This shows the code prompt for manual auth
+        # Save the credentials for the next run
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    
+    return creds
+
+def upload_file(file_path, file_name=None, mime_type=None):
+    creds = authenticate()
+    service = build('drive', 'v3', credentials=creds)
+
+    if not file_name:
+        file_name = os.path.basename(file_path)
+    
+    file_metadata = {'name': file_name}
+    media = MediaFileUpload(file_path, mimetype=mime_type, resumable=True)
+    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+    
+    print(f'File uploaded. File ID: {file.get("id")}')
+
+# Example usage
+upload_file('example.pdf', mime_type='application/pdf')
